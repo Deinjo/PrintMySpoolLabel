@@ -23,6 +23,7 @@ class AmlError(ValueError):
 
 @dataclass(frozen=True)
 class AmlLabelData:
+    manufacturer: str
     material: str
     color: str
     color_hex: str
@@ -74,22 +75,30 @@ def parse_aml(path: Path) -> AmlLabelData:
     if root.tag != "LPAPI":
         raise AmlError("Die Datei ist kein unterstütztes Labelife-AML-Dokument.")
 
-    texts = [node.text.strip() for node in root.findall(".//Text/content") if node.text and node.text.strip()]
+    # Read text and vertical position together to distinguish header and color fields.
+    text_entries = [
+        (node.findtext("content", "").strip(), float(node.findtext("y", "999")))
+        for node in root.findall(".//Text")
+        if node.findtext("content", "").strip()
+    ]
+    texts = [text for text, _y in text_entries]
     color_hex = next((match.group(0).upper() for text in texts for match in [HEX_RE.search(text)] if match), "")
     nozzle, bed, flow_ratio, max_speed = _parse_measurements(texts)
 
+    manufacturer = next((text for text, y in text_entries if y <= 2.0 and not HEX_RE.fullmatch(text)), "")
     candidates = [
-        text.replace("\n", " ").strip()
-        for text in texts
-        if not HEX_RE.fullmatch(text)
+        (text.replace("\n", " ").strip(), y)
+        for text, y in text_entries
+        if y > 2.0
+        and not HEX_RE.fullmatch(text)
         and "Nozzle:" not in text
         and "Bed Temp:" not in text
         and "Flow Ratio:" not in text
         and "Max Vol Spd:" not in text
         and text != f"{nozzle}\n{bed}\n{flow_ratio}\n{max_speed}"
     ]
-    material = next((text for text in candidates if text.upper().startswith(MATERIAL_PREFIXES)), "")
-    color = next((text for text in candidates if text != material), "")
+    material = next((text for text, _y in candidates if text.upper().startswith(MATERIAL_PREFIXES)), "")
+    color = next((text for text, _y in candidates if text != material), "")
 
     qr_url = next((node.text.strip() for node in root.findall(".//Qrcode/webContent") if node.text and node.text.strip()), "")
 
@@ -103,7 +112,7 @@ def parse_aml(path: Path) -> AmlLabelData:
         except (ValueError, OSError):
             continue
 
-    return AmlLabelData(material, color, color_hex, nozzle, bed, flow_ratio, max_speed, qr_url, logo)
+    return AmlLabelData(manufacturer, material, color, color_hex, nozzle, bed, flow_ratio, max_speed, qr_url, logo)
 
 
 def _draw_right_aligned(draw: ImageDraw.ImageDraw, text: str, right: int, y: int, font, fill: str = "black") -> None:
@@ -163,6 +172,9 @@ def render_aml_to_png(source: Path, destination: Path) -> AmlLabelData:
         logo = data.logo.copy()
         logo.thumbnail((135, 22), Image.Resampling.LANCZOS)
         image.paste(logo, (right_left, 3), logo)
+    elif data.manufacturer:
+        manufacturer_font = _fit_font(draw, data.manufacturer, right_edge - right_left, 16, bold=True)
+        draw.text((right_left, 2), data.manufacturer, font=manufacturer_font, fill="black")
 
     bar_top = 26
     draw.rectangle((right_left, bar_top, right_edge, bar_top + 21), fill="black")
