@@ -1,5 +1,40 @@
 # PrintMySpoolLabel
 
-Drag-and-drop printing of 3D filament spool labels on a NIIMBOT D110.
+Drag-and-drop printing of 3D filament spool labels on a NIIMBOT D110M.
 
-The project is planned to support PNG exports from [3D Filament Profiles](https://3dfilamentprofiles.com) first. Support for Labelife `.aml` exports will be evaluated separately.
+The first workflow targets PNG exports from [3D Filament Profiles](https://3dfilamentprofiles.com). Support for Labelife `.aml` exports will be evaluated separately.
+
+## Validated Printer Setup
+
+- Printer: NIIMBOT D110M
+- Connection: USB serial
+- Tested port: `COM4`
+- Print task: `D110M_V4`
+- Label: `40 x 12 mm`
+- Raster: `320 x 96 px` at 203 dpi
+- Print direction: `left`
+- Mirroring: disabled
+- Density: `3`
+- Label type: `1`
+
+## Prototype Setup
+
+Install the NiimBlue command-line backend:
+
+```powershell
+npm.cmd install --global @mmote/niimblue-node
+```
+
+Install the Python UI dependencies:
+
+```powershell
+python -m pip install -r requirements.txt
+```
+
+Start the application:
+
+```powershell
+python .\src\app.py
+```
+
+Drop a PNG label into the window, verify the preview, and click `Drucken`. The serial port defaults to `COM4` and can be changed in the window.
