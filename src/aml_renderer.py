@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 TARGET_SIZE = (320, 96)
 HEX_RE = re.compile(r"#[0-9a-fA-F]{6}\b")
 MATERIAL_PREFIXES = ("PLA", "PETG", "ABS", "ASA", "TPU", "PC", "PA", "PVA", "HIPS")
+TECHNICAL_MAX_VALUES = ("200-210°C", "50-100°C", "1.00", "99mm³/s")
 
 
 class AmlError(ValueError):
@@ -110,6 +111,25 @@ def _draw_right_aligned(draw: ImageDraw.ImageDraw, text: str, right: int, y: int
     draw.text((right - (bounds[2] - bounds[0]), y), text, font=font, fill=fill)
 
 
+def _technical_layout(draw: ImageDraw.ImageDraw):
+    available_width = 316 - 96
+    gap = 5
+    font = _font(14)
+    while font.size > 7:
+        widths = [draw.textbbox((0, 0), value, font=font)[2] for value in TECHNICAL_MAX_VALUES]
+        if sum(widths) + gap * (len(widths) - 1) <= available_width:
+            break
+        font = _font(font.size - 1)
+
+    widths = [draw.textbbox((0, 0), value, font=font)[2] for value in TECHNICAL_MAX_VALUES]
+    positions = []
+    x = 96
+    for width in widths:
+        positions.append(x)
+        x += width + gap
+    return font, positions
+
+
 def render_aml_to_png(source: Path, destination: Path) -> AmlLabelData:
     data = parse_aml(source)
     image = Image.new("RGB", TARGET_SIZE, "white")
@@ -142,15 +162,15 @@ def render_aml_to_png(source: Path, destination: Path) -> AmlLabelData:
         hex_font = _fit_font(draw, data.color_hex, 90, 10, bold=True)
         _draw_right_aligned(draw, data.color_hex, right_edge, 49, hex_font)
 
-    # Keep fixed columns so every generated label has identical typography.
-    detail_font = _font(10)
+    # Size and columns are based on fixed maxima, not on the current label data.
+    detail_font, detail_positions = _technical_layout(draw)
     details = (
         data.nozzle or "-",
         data.bed or "-",
         data.flow_ratio or "-",
         data.max_volumetric_speed or "-",
     )
-    for x, value in zip((96, 150, 202, 242), details):
+    for x, value in zip(detail_positions, details):
         draw.text((x, 72), value, font=detail_font, fill="black")
 
     image.save(destination, format="PNG")
