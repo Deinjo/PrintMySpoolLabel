@@ -164,26 +164,28 @@ def render_aml_to_png(source: Path, destination: Path) -> AmlLabelData:
         logo.thumbnail((135, 22), Image.Resampling.LANCZOS)
         image.paste(logo, (right_left, 3), logo)
 
-    bar_top = 28
-    draw.rectangle((right_left, bar_top, right_edge, bar_top + 17), fill="black")
-    material_font = _fit_font(draw, data.material or "Filament", 208, 13, bold=True)
+    bar_top = 26
+    draw.rectangle((right_left, bar_top, right_edge, bar_top + 21), fill="black")
+    material_font = _fit_font(draw, data.material or "Filament", 208, 15, bold=True)
     draw.text((right_left + 4, bar_top + 1), data.material or "Filament", font=material_font, fill="white")
 
     color_font = _color_font(draw)
-    draw.text((right_left, 48), data.color or "Farbe", font=color_font, fill="black")
+    draw.text((right_left, 49), data.color or "Farbe", font=color_font, fill="black")
     if data.color_hex:
-        _draw_right_aligned(draw, data.color_hex, right_edge, 48, color_font)
+        _draw_right_aligned(draw, data.color_hex, right_edge, 49, color_font)
 
     # Size and columns are based on fixed maxima, not on the current label data.
-    detail_font, detail_positions = _technical_layout(draw)
+    detail_font, _ = _technical_layout(draw)
     details = (
         data.nozzle or "-",
         data.bed or "-",
         data.flow_ratio or "-",
         data.max_volumetric_speed or "-",
     )
-    for x, value in zip(detail_positions, details):
-        draw.text((x, 72), value, font=detail_font, fill="black")
+    draw.text((96, 72), details[0], font=detail_font, fill="black")
+    draw.text((165, 72), details[1], font=detail_font, fill="black")
+    draw.text((225, 72), details[2], font=detail_font, fill="black")
+    _draw_right_aligned(draw, details[3], 316, 72, detail_font)
 
     image.save(destination, format="PNG")
     return data
