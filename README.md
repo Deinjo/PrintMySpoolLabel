@@ -37,4 +37,6 @@ Start the application:
 python .\src\app.py
 ```
 
+Alternatively, double-click `start-print-my-spool-label.bat`. The batch file updates the repository first and then starts the application.
+
 Drop a PNG label into the window, verify the preview, and click `Drucken`. The serial port defaults to `COM4` and can be changed in the window.
