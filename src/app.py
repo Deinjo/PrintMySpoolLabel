@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, QSettings, QSize, Qt, QThreadPool, Signal, Slot
-from PySide6.QtGui import QPixmap
+from PySide6.QtGui import QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFormLayout,
@@ -141,11 +141,23 @@ class PreviewLabel(QLabel):
     def _refresh_pixmap(self) -> None:
         if self._source_pixmap.isNull():
             return
-        available = self.contentsRect().adjusted(8, 8, -8, -8).size()
+        canvas_size = self.contentsRect().size()
+        available = self.contentsRect().adjusted(18, 18, -18, -18).size()
         if available.width() <= 0 or available.height() <= 0:
             return
         preview = self._source_pixmap.scaled(available, Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        super().setPixmap(preview)
+        canvas = QPixmap(canvas_size)
+        canvas.fill("#e9eef1")
+        x = (canvas.width() - preview.width()) // 2
+        y = (canvas.height() - preview.height()) // 2
+        painter = QPainter(canvas)
+        painter.drawPixmap(x, y, preview)
+        pen = QPen("#52616b")
+        pen.setWidth(1)
+        painter.setPen(pen)
+        painter.drawRect(x, y, preview.width() - 1, preview.height() - 1)
+        painter.end()
+        super().setPixmap(canvas)
 
 
 class MainWindow(QMainWindow):
