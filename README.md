@@ -2,7 +2,7 @@
 
 Drag-and-drop printing of 3D filament spool labels on a NIIMBOT D110M.
 
-The first workflow targets PNG exports from [3D Filament Profiles](https://3dfilamentprofiles.com). Support for Labelife `.aml` exports will be evaluated separately.
+The workflow supports PNG exports from [3D Filament Profiles](https://3dfilamentprofiles.com) and uses Labelife `.aml` exports as a data source for the compact 40 x 12 mm layout.
 
 ## Validated Printer Setup
 
@@ -40,4 +40,4 @@ python .\src\app.py
 
 Alternatively, double-click `start-print-my-spool-label.bat`. The batch file updates the repository first and then starts the application.
 
-Drop a PNG label into the window, verify the preview, and click `Drucken`. The serial port defaults to `COM4` and can be changed in the window.
+Drop a PNG or AML label into the window, verify the preview, and click `Drucken`. AML files are rendered into the compact 40 x 12 mm layout. The serial port defaults to `COM4` and can be changed in the window.

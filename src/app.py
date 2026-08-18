@@ -3,6 +3,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QRunnable, QSettings, QSize, Qt, QThreadPool, Signal, Slot
@@ -22,6 +23,11 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+
+try:
+    from .aml_renderer import AmlError, render_aml_to_png
+except ImportError:
+    from aml_renderer import AmlError, render_aml_to_png
 
 
 TARGET_WIDTH = 320
@@ -105,7 +111,7 @@ class DropArea(QLabel):
     file_dropped = Signal(Path)
 
     def __init__(self) -> None:
-        super().__init__("PNG-Datei hier ablegen")
+        super().__init__("PNG- oder AML-Datei hier ablegen")
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumSize(QSize(520, 180))
         self.setAcceptDrops(True)
@@ -113,12 +119,12 @@ class DropArea(QLabel):
 
     def dragEnterEvent(self, event) -> None:
         paths = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
-        if len(paths) == 1 and paths[0].suffix.lower() == ".png":
+        if len(paths) == 1 and paths[0].suffix.lower() in {".png", ".aml"}:
             event.acceptProposedAction()
 
     def dropEvent(self, event) -> None:
         paths = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
-        if len(paths) == 1 and paths[0].suffix.lower() == ".png":
+        if len(paths) == 1 and paths[0].suffix.lower() in {".png", ".aml"}:
             self.file_dropped.emit(paths[0])
             event.acceptProposedAction()
 
@@ -168,6 +174,7 @@ class MainWindow(QMainWindow):
         self.settings = QSettings("Deinjo", "PrintMySpoolLabel")
         self.thread_pool = QThreadPool.globalInstance()
         self.image_path: Path | None = None
+        self.source_path: Path | None = None
         self._build_ui()
         self._restore_settings()
 
@@ -240,14 +247,25 @@ class MainWindow(QMainWindow):
     def _set_image(self, path: Path) -> None:
         if not path.is_file():
             return
-        pixmap = QPixmap(str(path))
+        rendered_path = path
+        if path.suffix.lower() == ".aml":
+            rendered_path = Path(tempfile.gettempdir()) / "PrintMySpoolLabel" / f"{path.stem}-40x12.png"
+            rendered_path.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                render_aml_to_png(path, rendered_path)
+            except AmlError as exc:
+                QMessageBox.warning(self, "AML-Datei", str(exc))
+                return
+
+        pixmap = QPixmap(str(rendered_path))
         if pixmap.isNull():
             QMessageBox.warning(self, "Ungültige Datei", "Die PNG-Datei konnte nicht geladen werden.")
             return
-        self.image_path = path
-        self.file_label.setText(path.name)
+        self.image_path = rendered_path
+        self.source_path = path
+        self.file_label.setText(path.name if rendered_path == path else f"{path.name} -> 40 x 12 mm")
         self.preview.set_source_pixmap(pixmap)
-        self.drop_area.setText("Weitere PNG-Datei hier ablegen")
+        self.drop_area.setText("Weitere PNG- oder AML-Datei hier ablegen")
         self.print_button.setEnabled(True)
         self.status_label.setText("Label bereit zum Drucken")
 
