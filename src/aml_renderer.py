@@ -142,14 +142,16 @@ def render_aml_to_png(source: Path, destination: Path) -> AmlLabelData:
         hex_font = _fit_font(draw, data.color_hex, 90, 10, bold=True)
         _draw_right_aligned(draw, data.color_hex, right_edge, 49, hex_font)
 
-    detail_font = _font(8)
-    draw.text((right_left, 64), f"N: {data.nozzle or '-'}   B: {data.bed or '-'}", font=detail_font, fill="black")
-    draw.text(
-        (right_left, 78),
-        f"FR: {data.flow_ratio or '-'}   MVS: {data.max_volumetric_speed or '-'}",
-        font=detail_font,
-        fill="black",
+    details = " | ".join(
+        (
+            data.nozzle or "-",
+            data.bed or "-",
+            data.flow_ratio or "-",
+            data.max_volumetric_speed or "-",
+        )
     )
+    detail_font = _fit_font(draw, details, right_edge - right_left, 10)
+    draw.text((right_left, 72), details, font=detail_font, fill="black")
 
     image.save(destination, format="PNG")
     return data
