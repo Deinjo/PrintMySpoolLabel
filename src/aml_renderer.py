@@ -130,6 +130,19 @@ def _technical_layout(draw: ImageDraw.ImageDraw):
     return font, positions
 
 
+def _color_font(draw: ImageDraw.ImageDraw):
+    available_width = 316 - 96
+    gap = 8
+    font = _font(16, bold=True)
+    while font.size > 7:
+        color_width = draw.textbbox((0, 0), "Texture Silver", font=font)[2]
+        hex_width = draw.textbbox((0, 0), "#AABBCC", font=font)[2]
+        if color_width + hex_width + gap <= available_width:
+            return font
+        font = _font(font.size - 1, bold=True)
+    return font
+
+
 def render_aml_to_png(source: Path, destination: Path) -> AmlLabelData:
     data = parse_aml(source)
     image = Image.new("RGB", TARGET_SIZE, "white")
@@ -156,11 +169,10 @@ def render_aml_to_png(source: Path, destination: Path) -> AmlLabelData:
     material_font = _fit_font(draw, data.material or "Filament", 208, 13, bold=True)
     draw.text((right_left + 4, bar_top + 1), data.material or "Filament", font=material_font, fill="white")
 
-    color_font = _fit_font(draw, data.color or "Farbe", 125, 11, bold=True)
+    color_font = _color_font(draw)
     draw.text((right_left, 48), data.color or "Farbe", font=color_font, fill="black")
     if data.color_hex:
-        hex_font = _fit_font(draw, data.color_hex, 90, 10, bold=True)
-        _draw_right_aligned(draw, data.color_hex, right_edge, 49, hex_font)
+        _draw_right_aligned(draw, data.color_hex, right_edge, 48, color_font)
 
     # Size and columns are based on fixed maxima, not on the current label data.
     detail_font, detail_positions = _technical_layout(draw)
