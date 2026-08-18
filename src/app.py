@@ -121,6 +121,33 @@ class DropArea(QLabel):
             event.acceptProposedAction()
 
 
+class PreviewLabel(QLabel):
+    def __init__(self) -> None:
+        super().__init__("Noch kein Label ausgewählt")
+        self._source_pixmap = QPixmap()
+        self.setAlignment(Qt.AlignCenter)
+        self.setMinimumHeight(150)
+        self.setStyleSheet("background: white; border: 1px solid #d2d9df; border-radius: 4px;")
+
+    def set_source_pixmap(self, pixmap: QPixmap) -> None:
+        self._source_pixmap = pixmap
+        self._source_pixmap.setDevicePixelRatio(1.0)
+        self._refresh_pixmap()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        self._refresh_pixmap()
+
+    def _refresh_pixmap(self) -> None:
+        if self._source_pixmap.isNull():
+            return
+        available = self.contentsRect().adjusted(8, 8, -8, -8).size()
+        if available.width() <= 0 or available.height() <= 0:
+            return
+        preview = self._source_pixmap.scaled(available, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        super().setPixmap(preview)
+
+
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
@@ -149,10 +176,7 @@ class MainWindow(QMainWindow):
 
         self.drop_area = DropArea()
         self.drop_area.file_dropped.connect(self._set_image)
-        self.preview = QLabel("Noch kein Label ausgewählt")
-        self.preview.setAlignment(Qt.AlignCenter)
-        self.preview.setMinimumHeight(150)
-        self.preview.setStyleSheet("background: white; border: 1px solid #d2d9df; border-radius: 4px;")
+        self.preview = PreviewLabel()
 
         self.file_label = QLabel("Keine Datei ausgewählt")
         self.port_edit = QLineEdit(DEFAULT_PORT)
@@ -203,7 +227,7 @@ class MainWindow(QMainWindow):
             return
         self.image_path = path
         self.file_label.setText(path.name)
-        self.preview.setPixmap(pixmap.scaled(680, 220, Qt.KeepAspectRatio, Qt.FastTransformation))
+        self.preview.set_source_pixmap(pixmap)
         self.drop_area.setText("Weitere PNG-Datei hier ablegen")
         self.print_button.setEnabled(True)
         self.status_label.setText("Label bereit zum Drucken")
