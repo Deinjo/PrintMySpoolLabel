@@ -16,6 +16,7 @@ The first workflow targets PNG exports from [3D Filament Profiles](https://3dfil
 - Mirroring: disabled
 - Density: `3`
 - Label type: `1`
+- Copies: selectable from `1` to `99`
 
 ## Prototype Setup
 

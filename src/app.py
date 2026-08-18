@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QPlainTextEdit,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
@@ -34,10 +35,11 @@ class PrintSignals(QObject):
 
 
 class PrintTask(QRunnable):
-    def __init__(self, image_path: Path, port: str) -> None:
+    def __init__(self, image_path: Path, port: str, quantity: int) -> None:
         super().__init__()
         self.image_path = image_path
         self.port = port
+        self.quantity = quantity
         self.signals = PrintSignals()
 
     @Slot()
@@ -75,7 +77,7 @@ class PrintTask(QRunnable):
             "--threshold",
             "128",
             "--quantity",
-            "1",
+            str(self.quantity),
             str(self.image_path),
         ]
 
@@ -192,6 +194,9 @@ class MainWindow(QMainWindow):
 
         self.file_label = QLabel("Keine Datei ausgewählt")
         self.port_edit = QLineEdit(DEFAULT_PORT)
+        self.quantity_edit = QSpinBox()
+        self.quantity_edit.setRange(1, 99)
+        self.quantity_edit.setSuffix(" Kopie(n)")
         self.print_button = QPushButton("Drucken")
         self.print_button.setEnabled(False)
         self.print_button.clicked.connect(self._print)
@@ -200,6 +205,7 @@ class MainWindow(QMainWindow):
         settings_form = QFormLayout(settings_box)
         settings_form.addRow("Datei:", self.file_label)
         settings_form.addRow("Serieller Port:", self.port_edit)
+        settings_form.addRow("Anzahl Kopien:", self.quantity_edit)
         settings_form.addRow("Druckformat:", QLabel("40 × 12 mm / 320 × 96 Pixel / 203 dpi"))
         settings_form.addRow("Druckmodus:", QLabel("D110M_V4 / links / nicht gespiegelt"))
 
@@ -228,6 +234,7 @@ class MainWindow(QMainWindow):
 
     def _restore_settings(self) -> None:
         self.port_edit.setText(str(self.settings.value("printer/port", DEFAULT_PORT)))
+        self.quantity_edit.setValue(int(self.settings.value("printer/quantity", 1)))
 
     @Slot(Path)
     def _set_image(self, path: Path) -> None:
@@ -254,10 +261,12 @@ class MainWindow(QMainWindow):
             return
 
         self.settings.setValue("printer/port", port)
+        quantity = self.quantity_edit.value()
+        self.settings.setValue("printer/quantity", quantity)
         self.print_button.setEnabled(False)
         self.status_label.setText(f"Druck läuft über {port} ...")
         self.log.clear()
-        task = PrintTask(self.image_path, port)
+        task = PrintTask(self.image_path, port, quantity)
         task.signals.completed.connect(self._print_completed)
         task.signals.failed.connect(self._print_failed)
         self.thread_pool.start(task)
@@ -277,6 +286,7 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         self.settings.setValue("printer/port", self.port_edit.text().strip())
+        self.settings.setValue("printer/quantity", self.quantity_edit.value())
         self.thread_pool.waitForDone(3000)
         event.accept()
 
