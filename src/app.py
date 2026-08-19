@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QPlainTextEdit,
+    QProgressBar,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -105,6 +106,30 @@ class PrintTask(QRunnable):
             self.signals.completed.emit(result.returncode, output)
         else:
             self.signals.failed.emit(output or f"Druck fehlgeschlagen (Exit-Code {result.returncode}).")
+
+
+class RenderSignals(QObject):
+    completed = Signal(str)
+    failed = Signal(str)
+
+
+class RenderTask(QRunnable):
+    def __init__(self, source_path: Path, destination: Path) -> None:
+        super().__init__()
+        self.source_path = source_path
+        self.destination = destination
+        self.signals = RenderSignals()
+
+    @Slot()
+    def run(self) -> None:
+        try:
+            render_aml_to_png(self.source_path, self.destination)
+        except AmlError as exc:
+            self.signals.failed.emit(str(exc))
+        except Exception as exc:  # Keep unexpected parser errors visible in the GUI.
+            self.signals.failed.emit(f"AML-Verarbeitung fehlgeschlagen: {exc}")
+        else:
+            self.signals.completed.emit(str(self.destination))
 
 
 class DropArea(QLabel):
@@ -223,7 +248,12 @@ class MainWindow(QMainWindow):
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(300)
         self.log.setPlaceholderText("Druckdiagnose erscheint hier ...")
+        self.progress = QProgressBar()
+        self.progress.setRange(0, 0)
+        self.progress.setTextVisible(False)
+        self.progress.hide()
         log_layout.addWidget(self.status_label)
+        log_layout.addWidget(self.progress)
         log_layout.addWidget(self.log)
 
         buttons = QHBoxLayout()
@@ -247,23 +277,45 @@ class MainWindow(QMainWindow):
     def _set_image(self, path: Path) -> None:
         if not path.is_file():
             return
-        rendered_path = path
         if path.suffix.lower() == ".aml":
             rendered_path = Path(tempfile.gettempdir()) / "PrintMySpoolLabel" / f"{path.stem}-40x12.png"
             rendered_path.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                render_aml_to_png(path, rendered_path)
-            except AmlError as exc:
-                QMessageBox.warning(self, "AML-Datei", str(exc))
-                return
+            self.image_path = None
+            self.source_path = path
+            self.file_label.setText(f"{path.name} -> Verarbeitung ...")
+            self.print_button.setEnabled(False)
+            self.progress.show()
+            self.status_label.setText("AML wird verarbeitet ...")
+            task = RenderTask(path, rendered_path)
+            task.signals.completed.connect(self._aml_render_completed)
+            task.signals.failed.connect(self._aml_render_failed)
+            self.thread_pool.start(task)
+            return
 
+        rendered_path = path
+        self._display_rendered_image(path, rendered_path)
+
+    @Slot(str)
+    def _aml_render_completed(self, rendered_path: str) -> None:
+        self.progress.hide()
+        self._display_rendered_image(self.source_path, Path(rendered_path))
+
+    @Slot(str)
+    def _aml_render_failed(self, message: str) -> None:
+        self.progress.hide()
+        self.image_path = None
+        self.print_button.setEnabled(False)
+        self.status_label.setText("AML-Verarbeitung fehlgeschlagen")
+        QMessageBox.warning(self, "AML-Datei", message)
+
+    def _display_rendered_image(self, source_path: Path | None, rendered_path: Path) -> None:
         pixmap = QPixmap(str(rendered_path))
         if pixmap.isNull():
             QMessageBox.warning(self, "Ungültige Datei", "Die PNG-Datei konnte nicht geladen werden.")
             return
         self.image_path = rendered_path
-        self.source_path = path
-        self.file_label.setText(path.name if rendered_path == path else f"{path.name} -> 40 x 12 mm")
+        self.source_path = source_path
+        self.file_label.setText(source_path.name if rendered_path == source_path else f"{source_path.name} -> 40 x 12 mm")
         self.preview.set_source_pixmap(pixmap)
         self.drop_area.setText("Weitere PNG- oder AML-Datei hier ablegen")
         self.print_button.setEnabled(True)

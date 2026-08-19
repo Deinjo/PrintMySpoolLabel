@@ -5,6 +5,7 @@ import io
 import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 import qrcode
@@ -33,6 +34,7 @@ class AmlLabelData:
     max_volumetric_speed: str
     qr_url: str
     logo: Image.Image | None
+    qr_image: Image.Image | None = None
 
 
 def _font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
@@ -64,6 +66,101 @@ def _parse_measurements(texts: list[str]) -> tuple[str, str, str, str]:
         if "°" in lines[0] or "C" in lines[0] or "°" in lines[1] or "C" in lines[1]:
             return lines[0], lines[1], lines[2], lines[3]
     return "", "", "", ""
+
+
+def _crop_raster_logo(image: Image.Image) -> Image.Image:
+    """Keep the original manufacturer artwork instead of recreating it as text."""
+    header = image.convert("RGB").crop((0, 0, image.width, min(130, image.height)))
+    pixels = header.load()
+    points = [
+        (x, y)
+        for y in range(header.height)
+        for x in range(header.width)
+        if min(pixels[x, y]) < 245
+    ]
+    if not points:
+        return header.convert("RGBA")
+    left = max(0, min(x for x, _y in points) - 4)
+    top = max(0, min(y for _x, y in points) - 4)
+    right = min(header.width, max(x for x, _y in points) + 5)
+    bottom = min(header.height, max(y for _x, y in points) + 5)
+    # Some exports contain a one-pixel separator below the logo. It is not
+    # part of the manufacturer artwork and becomes visible after scaling.
+    while bottom > top + 10:
+        dark_pixels = sum(min(header.getpixel((x, bottom - 1))) < 245 for x in range(left, right))
+        if dark_pixels < (right - left) * 0.75:
+            break
+        bottom -= 1
+    return header.crop((left, top, right, bottom)).convert("RGBA")
+
+
+@lru_cache(maxsize=1)
+def _raster_ocr_engine():
+    try:
+        from rapidocr_onnxruntime import RapidOCR
+    except ImportError as exc:
+        raise AmlError(
+            "Für Raster-AML-Dateien fehlt die OCR-Abhängigkeit. "
+            "Installiere die Pakete aus requirements.txt."
+        ) from exc
+    return RapidOCR()
+
+
+def _normalize_ocr_text(text: str) -> str:
+    return (
+        text.replace("mm3/s", "mm³/s")
+        .replace("�/s", "³/s")
+        .replace("Â°C", "°C")
+        .replace("�C", "°C")
+        .strip()
+    )
+
+
+def _normalize_ocr_hex(text: str) -> str:
+    candidate = text.strip().upper().replace("O", "0")
+    match = HEX_RE.search(candidate)
+    return match.group(0) if match else ""
+
+
+def _ocr_raster(image: Image.Image) -> dict[str, str]:
+    results, _ = _raster_ocr_engine()(image.convert("RGB"))
+    values: dict[str, str] = {}
+    for box, text, confidence in results or []:
+        if confidence < 0.55:
+            continue
+        x = min(point[0] for point in box)
+        y = (min(point[1] for point in box) + max(point[1] for point in box)) / 2
+        cleaned = _normalize_ocr_text(text)
+        if y <= 130 and len(cleaned) > len(values.get("manufacturer", "")):
+            values["manufacturer"] = cleaned
+        elif 130 < y <= 205 and not values.get("material"):
+            values["material"] = cleaned
+        elif 130 < y <= 205 and _normalize_ocr_hex(cleaned):
+            values["color_hex"] = _normalize_ocr_hex(cleaned)
+        elif 205 < y <= 285:
+            values["color"] = f"{values.get('color', '')} {cleaned}".strip()
+        elif 365 < y <= 430 and x > 230:
+            values["nozzle"] = cleaned
+        elif 420 < y <= 480 and x > 230:
+            values["bed"] = cleaned
+        elif 470 < y <= 530 and x > 230:
+            values["flow_ratio"] = cleaned
+        elif 520 < y <= 585:
+            match = re.search(r"(\d+(?:\.\d+)?\s*mm(?:³|3)/s)", cleaned, re.IGNORECASE)
+            values["max_volumetric_speed"] = match.group(1) if match else cleaned
+
+    # The long color line can be split into overlapping OCR boxes. Re-read its
+    # fixed crop enlarged so names such as "Beige / Light Brown" stay intact.
+    color_crop = image.convert("RGB").crop((0, 190, 700, 290)).resize((1400, 200))
+    color_results, _ = _raster_ocr_engine()(color_crop)
+    color_parts = [
+        (min(point[0] for point in box), _normalize_ocr_text(text))
+        for box, text, confidence in color_results or []
+        if confidence >= 0.55
+    ]
+    if color_parts:
+        values["color"] = " ".join(text for _x, text in sorted(color_parts)).strip()
+    return values
 
 
 def parse_aml(path: Path) -> AmlLabelData:
@@ -103,16 +200,44 @@ def parse_aml(path: Path) -> AmlLabelData:
     qr_url = next((node.text.strip() for node in root.findall(".//Qrcode/webContent") if node.text and node.text.strip()), "")
 
     logo = None
+    qr_image = None
     for node in root.findall(".//Image/content"):
         if not node.text:
             continue
         try:
-            logo = Image.open(io.BytesIO(base64.b64decode(node.text))).convert("RGBA")
+            embedded = Image.open(io.BytesIO(base64.b64decode(node.text))).convert("RGBA")
+            if embedded.size == (800, 600) and not texts and not qr_url:
+                # Bulk exports flatten the complete label into one raster image.
+                raster_values = _ocr_raster(embedded)
+                manufacturer = raster_values.get("manufacturer", "")
+                material = raster_values.get("material", "")
+                color = raster_values.get("color", "")
+                color_hex = raster_values.get("color_hex", "")
+                nozzle = raster_values.get("nozzle", "")
+                bed = raster_values.get("bed", "")
+                flow_ratio = raster_values.get("flow_ratio", "")
+                max_speed = raster_values.get("max_volumetric_speed", "")
+                logo = _crop_raster_logo(embedded)
+                qr_image = embedded.crop((498, 298, 786, 586))
+            else:
+                logo = embedded
             break
         except (ValueError, OSError):
             continue
 
-    return AmlLabelData(manufacturer, material, color, color_hex, nozzle, bed, flow_ratio, max_speed, qr_url, logo)
+    return AmlLabelData(
+        manufacturer,
+        material,
+        color,
+        color_hex,
+        nozzle,
+        bed,
+        flow_ratio,
+        max_speed,
+        qr_url,
+        logo,
+        qr_image,
+    )
 
 
 def _draw_right_aligned(draw: ImageDraw.ImageDraw, text: str, right: int, y: int, font, fill: str = "black") -> None:
@@ -158,7 +283,11 @@ def render_aml_to_png(source: Path, destination: Path) -> AmlLabelData:
     draw = ImageDraw.Draw(image)
 
     qr_size = 84
-    if data.qr_url:
+    if data.qr_image:
+        qr_image = data.qr_image.copy().convert("RGB")
+        qr_image = qr_image.resize((qr_size, qr_size), Image.Resampling.NEAREST)
+        image.paste(qr_image, (4, 6))
+    elif data.qr_url:
         qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=1, box_size=4)
         qr.add_data(data.qr_url)
         qr.make(fit=True)
