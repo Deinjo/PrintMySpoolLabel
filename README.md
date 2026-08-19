@@ -209,7 +209,7 @@ Die Druckkommunikation erfolgt ueber [niimblue-node](https://github.com/Mmote/ni
 
 ## Lizenzen
 
-Fuer dieses Repository ist derzeit keine eigene Projektlizenz hinterlegt. Ohne eine `LICENSE`-Datei gilt: Der Quellcode darf nicht automatisch weiterverwendet, veraendert oder verteilt werden. Eine ausdrueckliche Projektlizenz sollte vor einer oeffentlichen Weitergabe festgelegt werden.
+Dieses Projekt steht unter der [MIT License](LICENSE). Die Lizenz erlaubt private und kommerzielle Nutzung, Veraenderung, Weitergabe und Integration in andere Projekte, solange der Copyright-Hinweis und der Lizenztext erhalten bleiben. Das Projekt wird ohne Garantie bereitgestellt.
 
 Die verwendeten Drittanbieterkomponenten haben eigene Lizenzbedingungen. Fuer die konkrete Version sind die jeweiligen Paket- und Repository-Lizenzdateien zu beachten, insbesondere fuer:
 
