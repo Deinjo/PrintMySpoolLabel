@@ -21,6 +21,12 @@ PrintMySpoolLabel erzeugt kompakte Filament-Labels fuer den NIIMBOT D110M. Die A
 - Fortschrittsanzeige waehrend der AML-Verarbeitung
 - Asynchrone AML-Verarbeitung, damit die GUI bedienbar bleibt
 
+## GUI-Vorschau
+
+Die folgende Aufnahme zeigt die Stapelansicht mit fuenf neutralen Demo-Labels des fiktiven Herstellers `Deinjo` und einem einfachen Pseudologo. Die Labels werden in der Reihenfolge des Datei-Drops in freie Rasterfelder einsortiert. Ein aktiviertes tuerkises Kontrollkaestchen markiert ein Label fuer den Druck. Die Demo-QR-Codes verweisen auf die oeffentlich zugaengliche Quelle `https://3dfilamentprofiles.com`.
+
+![PrintMySpoolLabel GUI mit geladenen AML-Dateien](docs/gui-batch.png)
+
 ## Eingabeformate
 
 ### PNG
