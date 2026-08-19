@@ -28,6 +28,12 @@ install-print-my-spool-label.bat
 
 Das Script installiert automatisch den NiimBlue-Commandline-Backend und alle Python-Abhaengigkeiten. Fehlen Git, Python oder Node.js, fragt das Script, ob die jeweilige Komponente ueber `winget` installiert werden soll. Dafuer muss der Windows-Paketmanager `winget` verfuegbar sein.
 
+Nach der Installation kann die GUI direkt ohne Repository-Update gestartet werden:
+
+```text
+start-print-my-spool-label-gui.bat
+```
+
 ## Manual Setup
 
 Install the NiimBlue command-line backend:
