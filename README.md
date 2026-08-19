@@ -12,6 +12,11 @@ PrintMySpoolLabel erzeugt kompakte Filament-Labels fuer den NIIMBOT D110M. Die A
 - Direkte Uebernahme des QR-Codes aus Raster-AMLs
 - QR-Code-Erzeugung aus strukturierten AML-XML-Daten
 - Auswahl von `1` bis `99` Kopien
+- Stapelverarbeitung von bis zu 24 Dateien
+- 24 Label-Felder als Raster mit 4 Spalten und 6 Zeilen und individueller Druckauswahl
+- Nachtraegliches Hinzufuegen weiterer Dateien in freie Rasterfelder
+- Clear-Funktion zum Zuruecksetzen des gesamten Stapels
+- Automatisches Deaktivieren eines Labels nach erfolgreichem Druck
 - Konfigurierbarer serieller Port mit gespeichertem Standardwert `COM4`
 - Fortschrittsanzeige waehrend der AML-Verarbeitung
 - Asynchrone AML-Verarbeitung, damit die GUI bedienbar bleibt
@@ -146,6 +151,19 @@ python .\src\app.py
 4. Besonders bei ungewoehnlichen Schriftarten oder stark veraenderten Layouts die technischen Werte kontrollieren.
 5. Port und Kopienanzahl einstellen.
 6. `Drucken` klicken.
+
+### Mehrere Labels als Stapel verarbeiten
+
+1. Bis zu 24 PNG- oder AML-Dateien gleichzeitig markieren.
+2. Die Dateien gemeinsam in die kleine Drop-Zone am oberen Fensterrand ziehen.
+3. Die Anwendung verarbeitet die Dateien und fuellt die freien Rasterfelder von links nach rechts und von oben nach unten.
+4. In jedem belegten Feld die Option `Drucken` aktivieren oder deaktivieren.
+5. Weitere Dateien koennen jederzeit in freie Felder nachgeladen werden, ohne den bisherigen Stapel zu loeschen.
+6. Mit `Alles loeschen` werden alle Labels und Auswahlzustande entfernt.
+7. `Drucken` startet den Druck der aktivierten Labels nacheinander.
+8. Nach erfolgreichem Druck wird die Option des jeweiligen Labels automatisch deaktiviert.
+
+Nicht aktivierte Labels bleiben im Raster erhalten und koennen spaeter erneut aktiviert und gedruckt werden.
 
 ### QR-Code pruefen
 
