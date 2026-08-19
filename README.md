@@ -18,7 +18,17 @@ The workflow supports PNG exports from [3D Filament Profiles](https://3dfilament
 - Label type: `1`
 - Copies: selectable from `1` to `99`
 
-## Prototype Setup
+## Installation
+
+Auf einem neuen Windows-Rechner muessen Git, Python 3.12 oder neuer und Node.js LTS installiert sein. Danach kann die Einrichtung per Doppelklick gestartet werden:
+
+```text
+install-print-my-spool-label.bat
+```
+
+Das Script installiert automatisch den NiimBlue-Commandline-Backend und alle Python-Abhaengigkeiten. Fehlen Git, Python oder Node.js, fragt das Script, ob die jeweilige Komponente ueber `winget` installiert werden soll. Dafuer muss der Windows-Paketmanager `winget` verfuegbar sein.
+
+## Manual Setup
 
 Install the NiimBlue command-line backend:
 
