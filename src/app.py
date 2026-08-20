@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
+import zipfile
 from pathlib import Path
+from pathlib import PurePosixPath
 
 from PySide6.QtCore import QObject, QRunnable, QSettings, QSize, Qt, QThreadPool, Signal, Slot
 from PySide6.QtGui import QPainter, QPen, QPixmap
@@ -142,7 +145,7 @@ class DropArea(QLabel):
     files_dropped = Signal(list)
 
     def __init__(self) -> None:
-        super().__init__("Bis zu 24 PNG- oder AML-Dateien hier ablegen")
+        super().__init__("Bis zu 24 PNG-, AML- oder ZIP-Dateien hier ablegen")
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumSize(QSize(520, 70))
         self.setAcceptDrops(True)
@@ -150,12 +153,12 @@ class DropArea(QLabel):
 
     def dragEnterEvent(self, event) -> None:
         paths = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
-        if 0 < len(paths) <= 24 and all(path.suffix.lower() in {".png", ".aml"} for path in paths):
+        if 0 < len(paths) <= 24 and all(path.suffix.lower() in {".png", ".aml", ".zip"} for path in paths):
             event.acceptProposedAction()
 
     def dropEvent(self, event) -> None:
         paths = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
-        if 0 < len(paths) <= 24 and all(path.suffix.lower() in {".png", ".aml"} for path in paths):
+        if 0 < len(paths) <= 24 and all(path.suffix.lower() in {".png", ".aml", ".zip"} for path in paths):
             self.files_dropped.emit(paths)
             event.acceptProposedAction()
 
@@ -309,6 +312,7 @@ class MainWindow(QMainWindow):
         self.active_print_index: int | None = None
         self.print_port = ""
         self.print_quantity = 1
+        self._import_tempdirs: list[tempfile.TemporaryDirectory] = []
         self._build_ui()
         for slot in self.slots:
             slot.enabled.toggled.connect(self._update_print_button)
@@ -403,17 +407,62 @@ class MainWindow(QMainWindow):
         self.port_edit.setText(str(self.settings.value("printer/port", DEFAULT_PORT)))
         self.quantity_edit.setValue(int(self.settings.value("printer/quantity", 1)))
 
+    def _extract_zip(self, archive_path: Path) -> list[Path]:
+        tempdir = tempfile.TemporaryDirectory(prefix="PrintMySpoolLabel-")
+        extracted: list[Path] = []
+        root = Path(tempdir.name).resolve()
+        try:
+            with zipfile.ZipFile(archive_path) as archive:
+                for member in archive.infolist():
+                    if member.is_dir() or Path(member.filename).suffix.lower() not in {".png", ".aml"}:
+                        continue
+                    if stat.S_ISLNK(member.external_attr >> 16):
+                        continue
+
+                    relative = PurePosixPath(member.filename.replace("\\", "/"))
+                    if relative.is_absolute() or ".." in relative.parts:
+                        continue
+                    target = (root / Path(*relative.parts)).resolve()
+                    try:
+                        target.relative_to(root)
+                    except ValueError:
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.open(member) as source, target.open("wb") as destination:
+                        shutil.copyfileobj(source, destination)
+                    extracted.append(target)
+        except (OSError, zipfile.BadZipFile) as exc:
+            tempdir.cleanup()
+            self.log.appendPlainText(f"ZIP konnte nicht verarbeitet werden ({archive_path.name}): {exc}")
+            return []
+
+        if not extracted:
+            tempdir.cleanup()
+            self.log.appendPlainText(f"Keine PNG- oder AML-Dateien in {archive_path.name} gefunden.")
+            return []
+        self._import_tempdirs.append(tempdir)
+        return extracted
+
+    def _expand_import_paths(self, paths: list[Path]) -> list[Path]:
+        expanded: list[Path] = []
+        for path in paths:
+            if path.suffix.lower() == ".zip":
+                expanded.extend(self._extract_zip(path))
+            elif path.suffix.lower() in {".png", ".aml"}:
+                expanded.append(path)
+        return expanded
+
     @Slot(list)
     def _add_files(self, paths: list[Path]) -> None:
+        self.log.clear()
         free_indices = [index for index, slot in enumerate(self.slots) if not slot.is_ready() and slot.source_path is None]
-        valid_paths = [path for path in paths if path.is_file() and path.suffix.lower() in {".png", ".aml"}]
+        valid_paths = [path for path in self._expand_import_paths(paths) if path.is_file()]
         if len(valid_paths) > len(free_indices):
             self.status_label.setText(f"Nur {len(free_indices)} freie Rasterfelder verfuegbar")
             valid_paths = valid_paths[: len(free_indices)]
         if not valid_paths:
             return
 
-        self.log.clear()
         self.total_renders = sum(path.suffix.lower() == ".aml" for path in valid_paths)
         self.pending_renders = self.total_renders
         if self.total_renders:
@@ -550,6 +599,8 @@ class MainWindow(QMainWindow):
         self.render_generation += 1
         self.render_pool.waitForDone(3000)
         self.thread_pool.waitForDone(3000)
+        for tempdir in self._import_tempdirs:
+            tempdir.cleanup()
         event.accept()
 
 

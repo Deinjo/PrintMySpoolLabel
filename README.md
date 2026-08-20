@@ -4,7 +4,7 @@ PrintMySpoolLabel erzeugt kompakte Filament-Labels fuer den NIIMBOT D110M. Die A
 
 ## Funktionen
 
-- Drag & Drop fuer PNG- und AML-Dateien
+- Drag & Drop fuer PNG-, AML- und ZIP-Dateien aus BulkExporten
 - Vorschau des fertigen `320 x 96 px`-Labels
 - Unterstuetzung fuer strukturierte und gerasterte AML-Dateien
 - OCR-Auswertung von Raster-AMLs direkt aus dem eingebetteten Bild
@@ -34,6 +34,10 @@ Die folgende Aufnahme zeigt die Stapelansicht mit fuenf neutralen Demo-Labels de
 PNG-Dateien werden als fertiges Labelbild verwendet. Das Bild wird in der Vorschau innerhalb des Zielrahmens angezeigt und beim Druck auf `320 x 96 px` beziehungsweise `40 x 12 mm` eingepasst.
 
 PNG ist geeignet, wenn das Label bereits fertig gestaltet ist oder keine Daten aus dem Bild extrahiert werden muessen.
+
+### ZIP-BulkExport
+
+BulkExport-Dateien von [3D Filament Profiles](https://3dfilamentprofiles.com) koennen direkt als ZIP-Datei auf die Drop-Zone gezogen werden. Die Anwendung entpackt daraus automatisch alle enthaltenen PNG- und AML-Dateien, auch wenn diese in Unterordnern liegen, und uebernimmt sie in der Reihenfolge des ZIP-Archivs in freie Stapelfelder. Andere Dateien im Archiv werden ignoriert.
 
 ### Struktur-AML
 
@@ -160,8 +164,8 @@ py -3.12 .\src\app.py
 
 ### Mehrere Labels als Stapel verarbeiten
 
-1. Bis zu 24 PNG- oder AML-Dateien gleichzeitig markieren.
-2. Die Dateien gemeinsam in die kleine Drop-Zone am oberen Fensterrand ziehen.
+1. Bis zu 24 PNG-, AML- oder ZIP-Dateien gleichzeitig markieren.
+2. Die Dateien gemeinsam in die kleine Drop-Zone am oberen Fensterrand ziehen. Ein ZIP-BulkExport wird automatisch entpackt und verarbeitet.
 3. Die Anwendung verarbeitet die Dateien und fuellt die freien Rasterfelder von links nach rechts und von oben nach unten.
 4. In jedem belegten Feld die Option `Drucken` aktivieren oder deaktivieren.
 5. Weitere Dateien koennen jederzeit in freie Felder nachgeladen werden, ohne den bisherigen Stapel zu loeschen.
