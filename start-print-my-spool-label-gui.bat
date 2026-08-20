@@ -3,17 +3,24 @@ setlocal
 
 cd /d "%~dp0"
 
-set "PYTHON=python"
-where python >nul 2>&1
-if errorlevel 1 (
-    where py >nul 2>&1
-    if errorlevel 1 (
-        echo FEHLER: Python wurde nicht gefunden.
-        echo Fuehre zuerst install-print-my-spool-label.bat aus.
-        pause
-        exit /b 1
+set "PYTHON="
+where py >nul 2>&1
+if not errorlevel 1 (
+    py -3.12 -c "import sys" >nul 2>&1
+    if not errorlevel 1 set "PYTHON=py -3.12"
+)
+if not defined PYTHON (
+    where python >nul 2>&1
+    if not errorlevel 1 (
+        python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3,12) else 1)" >nul 2>&1
+        if not errorlevel 1 set "PYTHON=python"
     )
-    set "PYTHON=py"
+)
+if not defined PYTHON (
+    echo FEHLER: Python 3.12 wurde nicht gefunden.
+    echo Fuehre zuerst install-print-my-spool-label.bat aus.
+    pause
+    exit /b 1
 )
 
 echo Starte PrintMySpoolLabel GUI ...

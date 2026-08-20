@@ -79,7 +79,7 @@ Die Raster-AML-Verarbeitung setzt `rapidocr-onnxruntime` voraus. Die Abhaengigke
 
 ### One-Click-Installation
 
-Auf einem neuen Windows-Rechner muessen Git, Python 3.12 oder neuer und Node.js LTS verfuegbar sein. Danach kann die Einrichtung per Doppelklick gestartet werden:
+Auf einem neuen Windows-Rechner muessen Git, Python 3.12 und Node.js LTS verfuegbar sein. Python 3.13 wird fuer die OCR-Abhaengigkeit derzeit nicht verwendet. Danach kann die Einrichtung per Doppelklick gestartet werden:
 
 ```text
 install-print-my-spool-label.bat
@@ -103,7 +103,7 @@ npm.cmd install --global @mmote/niimblue-node
 Python-Abhaengigkeiten installieren:
 
 ```powershell
-python -m pip install -r requirements.txt
+py -3.12 -m pip install -r requirements.txt
 ```
 
 ## Startoptionen
@@ -127,7 +127,7 @@ Dieses Script fuehrt zuerst `git pull` aus und startet danach die GUI. Es eignet
 ### Python direkt verwenden
 
 ```powershell
-python .\src\app.py
+py -3.12 .\src\app.py
 ```
 
 ## HowTo
@@ -192,7 +192,7 @@ Danach ein neues Terminal beziehungsweise die GUI neu starten.
 Sicherstellen, dass die Abhaengigkeiten installiert sind:
 
 ```powershell
-python -m pip install -r requirements.txt
+py -3.12 -m pip install -r requirements.txt
 ```
 
 Bei unbekannten Rasterlayouts koennen feste Bildkoordinaten fuer Logo und QR-Bereich abweichen. Die Vorschau vor dem Druck pruefen.

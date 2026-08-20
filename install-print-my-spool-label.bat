@@ -11,17 +11,24 @@ echo.
 call :ensure_tool git Git.Git Git
 if errorlevel 1 goto :failed
 
-set "PYTHON=python"
-where python >nul 2>&1
-if errorlevel 1 (
-    where py >nul 2>&1
-    if errorlevel 1 (
-        call :ensure_tool python Python.Python.3.12 Python
-        if errorlevel 1 goto :failed
-        set "PYTHON=python"
-    ) else (
-        set "PYTHON=py"
+set "PYTHON="
+where py >nul 2>&1
+if not errorlevel 1 (
+    py -3.12 -c "import sys" >nul 2>&1
+    if not errorlevel 1 set "PYTHON=py -3.12"
+)
+
+if not defined PYTHON (
+    where python >nul 2>&1
+    if not errorlevel 1 (
+        python -c "import sys; raise SystemExit(0 if sys.version_info[:2] == (3,12) else 1)" >nul 2>&1
+        if not errorlevel 1 set "PYTHON=python"
     )
+)
+
+if not defined PYTHON (
+    call :ensure_tool python Python.Python.3.12 "Python 3.12"
+    if errorlevel 1 goto :failed
 )
 
 call :ensure_tool npm.cmd OpenJS.NodeJS.LTS Node.js
