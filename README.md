@@ -18,6 +18,7 @@ PrintMySpoolLabel erzeugt kompakte Filament-Labels fuer den NIIMBOT D110M. Die A
 - Clear-Funktion zum Zuruecksetzen des gesamten Stapels
 - Automatisches Deaktivieren eines Labels nach erfolgreichem Druck
 - Konfigurierbarer serieller Port mit gespeichertem Standardwert `COM4`
+- Dropdown mit aktuell verfügbaren seriellen Schnittstellen und Aktualisieren-Funktion
 - Fortschrittsanzeige im Format `x von y Dateien verarbeitet` waehrend der Stapelverarbeitung
 - Sub-Status fuer aktuelle Schritte wie AML-Lesen, OCR und Label-Rendering
 - Asynchrone AML-Verarbeitung, damit die GUI bedienbar bleibt
@@ -79,6 +80,8 @@ Die Raster-AML-Verarbeitung setzt `rapidocr-onnxruntime` voraus. Die Abhaengigke
 - Density: `3`
 - Threshold: `128`
 - Kopien: `1` bis `99`
+
+Die serielle Schnittstelle wird beim Start automatisch erkannt. Über `Aktualisieren` können nachträglich angeschlossene Geräte erneut eingelesen werden. Der Port bleibt editierbar, falls ein Gerät nicht über seine Standardbeschreibung erkannt wird.
 
 ## Installation
 
@@ -166,7 +169,7 @@ py -3.12 .\src\app.py
 ### Mehrere Labels als Stapel verarbeiten
 
 1. Bis zu 24 PNG-, AML- oder ZIP-Dateien gleichzeitig markieren.
-2. Die Dateien gemeinsam in die kleine Drop-Zone am oberen Fensterrand ziehen. Ein ZIP-BulkExport wird automatisch entpackt und verarbeitet.
+2. Die Dateien gemeinsam auf eine beliebige Stelle im Anwendungsfenster ziehen. Die Drop-Zone am oberen Fensterrand dient als sichtbarer Hinweis. Ein ZIP-BulkExport wird automatisch entpackt und verarbeitet.
 3. Die Anwendung verarbeitet die Dateien und fuellt die freien Rasterfelder von links nach rechts und von oben nach unten.
 4. In jedem belegten Feld die Option `Drucken` aktivieren oder deaktivieren.
 5. Weitere Dateien koennen jederzeit in freie Felder nachgeladen werden, ohne den bisherigen Stapel zu loeschen.

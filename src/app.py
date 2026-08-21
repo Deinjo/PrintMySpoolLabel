@@ -9,13 +9,14 @@ import zipfile
 from pathlib import Path
 from pathlib import PurePosixPath
 
-from PySide6.QtCore import QObject, QRunnable, QSettings, QSize, Qt, QThreadPool, Signal, Slot
+from PySide6.QtCore import QEvent, QObject, QRunnable, QSettings, QSize, Qt, QThreadPool, Signal, Slot
 from PySide6.QtGui import QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
     QFormLayout,
     QGroupBox,
     QCheckBox,
+    QComboBox,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -40,6 +41,17 @@ except ImportError:
 TARGET_WIDTH = 320
 TARGET_HEIGHT = 96
 DEFAULT_PORT = "COM4"
+SUPPORTED_DROP_SUFFIXES = {".png", ".aml", ".zip"}
+
+
+def _drop_paths(event) -> list[Path]:
+    if not event.mimeData().hasUrls():
+        return []
+    return [Path(url.toLocalFile()) for url in event.mimeData().urls() if url.isLocalFile()]
+
+
+def _is_supported_drop(paths: list[Path]) -> bool:
+    return bool(paths) and len(paths) <= 24 and all(path.suffix.lower() in SUPPORTED_DROP_SUFFIXES for path in paths)
 
 
 class PrintSignals(QObject):
@@ -157,13 +169,13 @@ class DropArea(QLabel):
         self.setObjectName("dropArea")
 
     def dragEnterEvent(self, event) -> None:
-        paths = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
-        if 0 < len(paths) <= 24 and all(path.suffix.lower() in {".png", ".aml", ".zip"} for path in paths):
+        paths = _drop_paths(event)
+        if _is_supported_drop(paths):
             event.acceptProposedAction()
 
     def dropEvent(self, event) -> None:
-        paths = [Path(url.toLocalFile()) for url in event.mimeData().urls()]
-        if 0 < len(paths) <= 24 and all(path.suffix.lower() in {".png", ".aml", ".zip"} for path in paths):
+        paths = _drop_paths(event)
+        if _is_supported_drop(paths):
             self.files_dropped.emit(paths)
             event.acceptProposedAction()
 
@@ -356,7 +368,17 @@ class MainWindow(QMainWindow):
 
         self.clear_button = QPushButton("Alles löschen")
         self.clear_button.clicked.connect(self._clear_all)
-        self.port_edit = QLineEdit(DEFAULT_PORT)
+        self.port_edit = QComboBox()
+        self.port_edit.setEditable(True)
+        self.port_edit.setInsertPolicy(QComboBox.NoInsert)
+        self.port_edit.setToolTip("Erkannte serielle Schnittstelle auswählen oder manuell eingeben")
+        self.refresh_ports_button = QPushButton("Aktualisieren")
+        self.refresh_ports_button.setToolTip("Verfügbare serielle Schnittstellen erneut einlesen")
+        self.refresh_ports_button.clicked.connect(self._refresh_ports)
+        port_layout = QHBoxLayout()
+        port_layout.setContentsMargins(0, 0, 0, 0)
+        port_layout.addWidget(self.port_edit, 1)
+        port_layout.addWidget(self.refresh_ports_button)
         self.quantity_edit = QSpinBox()
         self.quantity_edit.setRange(1, 99)
         self.quantity_edit.setSuffix(" Kopie(n)")
@@ -367,7 +389,7 @@ class MainWindow(QMainWindow):
         settings_box = QGroupBox("Druckeinstellungen")
         settings_box.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
         settings_form = QFormLayout(settings_box)
-        settings_form.addRow("Serieller Port:", self.port_edit)
+        settings_form.addRow("Serieller Port:", port_layout)
         settings_form.addRow("Anzahl Kopien:", self.quantity_edit)
         settings_form.addRow("Druckformat:", QLabel("40 × 12 mm / 320 × 96 Pixel / 203 dpi"))
         settings_form.addRow("Druckmodus:", QLabel("D110M_V4 / links / nicht gespiegelt"))
@@ -412,10 +434,60 @@ class MainWindow(QMainWindow):
         layout.addLayout(bottom_layout)
         layout.addLayout(buttons)
         self.setCentralWidget(central)
+        for widget in self.findChildren(QWidget):
+            widget.installEventFilter(self)
+
+    def eventFilter(self, watched, event) -> bool:
+        if event.type() == QEvent.DragEnter:
+            paths = _drop_paths(event)
+            if _is_supported_drop(paths):
+                event.acceptProposedAction()
+                return True
+        elif event.type() == QEvent.Drop:
+            paths = _drop_paths(event)
+            if _is_supported_drop(paths):
+                self._add_files(paths)
+                event.acceptProposedAction()
+                return True
+        return super().eventFilter(watched, event)
+
+    def dragEnterEvent(self, event) -> None:
+        if _is_supported_drop(_drop_paths(event)):
+            event.acceptProposedAction()
+            return
+        super().dragEnterEvent(event)
+
+    def dropEvent(self, event) -> None:
+        paths = _drop_paths(event)
+        if _is_supported_drop(paths):
+            self._add_files(paths)
+            event.acceptProposedAction()
+            return
+        super().dropEvent(event)
 
     def _restore_settings(self) -> None:
-        self.port_edit.setText(str(self.settings.value("printer/port", DEFAULT_PORT)))
+        saved_port = str(self.settings.value("printer/port", DEFAULT_PORT))
+        self._refresh_ports(saved_port)
         self.quantity_edit.setValue(int(self.settings.value("printer/quantity", 1)))
+
+    def _refresh_ports(self, preferred_port: str | None = None) -> None:
+        current_port = preferred_port or self.port_edit.currentText().strip() or DEFAULT_PORT
+        try:
+            from serial.tools import list_ports
+
+            ports = sorted(list_ports.comports(), key=lambda port: port.device)
+        except ImportError:
+            ports = []
+
+        self.port_edit.blockSignals(True)
+        self.port_edit.clear()
+        for port in ports:
+            description = port.description or "Unbekanntes Gerät"
+            self.port_edit.addItem(f"{port.device} - {description}", port.device)
+        if not ports or current_port not in [port.device for port in ports]:
+            self.port_edit.addItem(current_port, current_port)
+        self.port_edit.setCurrentIndex(self.port_edit.findData(current_port))
+        self.port_edit.blockSignals(False)
 
     def _extract_zip(self, archive_path: Path) -> list[Path]:
         tempdir = tempfile.TemporaryDirectory(prefix="PrintMySpoolLabel-")
@@ -576,7 +648,7 @@ class MainWindow(QMainWindow):
         selected = [index for index, slot in enumerate(self.slots) if slot.is_ready() and slot.enabled.isChecked()]
         if not selected:
             return
-        port = self.port_edit.text().strip()
+        port = self.port_edit.currentText().strip()
         if not port:
             QMessageBox.warning(self, "Port fehlt", "Bitte einen seriellen Port angeben.")
             return
@@ -629,7 +701,7 @@ class MainWindow(QMainWindow):
         QMessageBox.warning(self, "Druckfehler", message)
 
     def closeEvent(self, event) -> None:
-        self.settings.setValue("printer/port", self.port_edit.text().strip())
+        self.settings.setValue("printer/port", self.port_edit.currentText().strip())
         self.settings.setValue("printer/quantity", self.quantity_edit.value())
         self.render_generation += 1
         self.render_pool.waitForDone(3000)
