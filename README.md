@@ -18,7 +18,8 @@ PrintMySpoolLabel erzeugt kompakte Filament-Labels fuer den NIIMBOT D110M. Die A
 - Clear-Funktion zum Zuruecksetzen des gesamten Stapels
 - Automatisches Deaktivieren eines Labels nach erfolgreichem Druck
 - Konfigurierbarer serieller Port mit gespeichertem Standardwert `COM4`
-- Fortschrittsanzeige waehrend der AML-Verarbeitung
+- Fortschrittsanzeige im Format `x von y Dateien verarbeitet` waehrend der Stapelverarbeitung
+- Sub-Status fuer aktuelle Schritte wie AML-Lesen, OCR und Label-Rendering
 - Asynchrone AML-Verarbeitung, damit die GUI bedienbar bleibt
 
 ## GUI-Vorschau

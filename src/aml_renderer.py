@@ -7,6 +7,7 @@ import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
+from typing import Callable
 
 import qrcode
 from PIL import Image, ImageDraw, ImageFont
@@ -16,6 +17,7 @@ TARGET_SIZE = (320, 96)
 HEX_RE = re.compile(r"#[0-9a-fA-F]{6}\b")
 MATERIAL_PREFIXES = ("PLA", "PETG", "ABS", "ASA", "TPU", "PC", "PA", "PVA", "HIPS")
 TECHNICAL_MAX_VALUES = ("200-210°C", "50-100°C", "1.00", "99mm³/s")
+ProgressCallback = Callable[[str], None]
 
 
 class AmlError(ValueError):
@@ -122,7 +124,9 @@ def _normalize_ocr_hex(text: str) -> str:
     return match.group(0) if match else ""
 
 
-def _ocr_raster(image: Image.Image) -> dict[str, str]:
+def _ocr_raster(image: Image.Image, progress_callback: ProgressCallback | None = None) -> dict[str, str]:
+    if progress_callback:
+        progress_callback("OCR wird ausgeführt")
     results, _ = _raster_ocr_engine()(image.convert("RGB"))
     values: dict[str, str] = {}
     for box, text, confidence in results or []:
@@ -151,6 +155,8 @@ def _ocr_raster(image: Image.Image) -> dict[str, str]:
 
     # The long color line can be split into overlapping OCR boxes. Re-read its
     # fixed crop enlarged so names such as "Beige / Light Brown" stay intact.
+    if progress_callback:
+        progress_callback("Farbangabe wird ausgewertet")
     color_crop = image.convert("RGB").crop((0, 190, 700, 290)).resize((1400, 200))
     color_results, _ = _raster_ocr_engine()(color_crop)
     color_parts = [
@@ -163,7 +169,9 @@ def _ocr_raster(image: Image.Image) -> dict[str, str]:
     return values
 
 
-def parse_aml(path: Path) -> AmlLabelData:
+def parse_aml(path: Path, progress_callback: ProgressCallback | None = None) -> AmlLabelData:
+    if progress_callback:
+        progress_callback("AML wird gelesen")
     try:
         root = ET.parse(path).getroot()
     except (ET.ParseError, OSError) as exc:
@@ -208,7 +216,9 @@ def parse_aml(path: Path) -> AmlLabelData:
             embedded = Image.open(io.BytesIO(base64.b64decode(node.text))).convert("RGBA")
             if embedded.size == (800, 600) and not texts and not qr_url:
                 # Bulk exports flatten the complete label into one raster image.
-                raster_values = _ocr_raster(embedded)
+                if progress_callback:
+                    progress_callback("Rasterbild wird analysiert")
+                raster_values = _ocr_raster(embedded, progress_callback)
                 manufacturer = raster_values.get("manufacturer", "")
                 material = raster_values.get("material", "")
                 color = raster_values.get("color", "")
@@ -277,8 +287,12 @@ def _color_font(draw: ImageDraw.ImageDraw):
     return font
 
 
-def render_aml_to_png(source: Path, destination: Path) -> AmlLabelData:
-    data = parse_aml(source)
+def render_aml_to_png(
+    source: Path, destination: Path, progress_callback: ProgressCallback | None = None
+) -> AmlLabelData:
+    data = parse_aml(source, progress_callback)
+    if progress_callback:
+        progress_callback("Label wird gerendert")
     image = Image.new("RGB", TARGET_SIZE, "white")
     draw = ImageDraw.Draw(image)
 

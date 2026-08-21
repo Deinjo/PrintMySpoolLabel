@@ -118,6 +118,7 @@ class PrintTask(QRunnable):
 class RenderSignals(QObject):
     completed = Signal(int, int, str)
     failed = Signal(int, int, str)
+    progress = Signal(int, int, str)
 
 
 class RenderTask(QRunnable):
@@ -132,7 +133,11 @@ class RenderTask(QRunnable):
     @Slot()
     def run(self) -> None:
         try:
-            render_aml_to_png(self.source_path, self.destination)
+            render_aml_to_png(
+                self.source_path,
+                self.destination,
+                lambda message: self.signals.progress.emit(self.generation, self.slot_index, message),
+            )
         except AmlError as exc:
             self.signals.failed.emit(self.generation, self.slot_index, str(exc))
         except Exception as exc:  # Keep unexpected parser errors visible in the GUI.
@@ -313,6 +318,8 @@ class MainWindow(QMainWindow):
         self.print_port = ""
         self.print_quantity = 1
         self._import_tempdirs: list[tempfile.TemporaryDirectory] = []
+        self.total_files = 0
+        self.processed_files = 0
         self._build_ui()
         for slot in self.slots:
             slot.enabled.toggled.connect(self._update_print_button)
@@ -369,6 +376,8 @@ class MainWindow(QMainWindow):
         log_box.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
         log_layout = QVBoxLayout(log_box)
         self.status_label = QLabel("Bereit")
+        self.substatus_label = QLabel("Warte auf Dateien ...")
+        self.substatus_label.setStyleSheet("color: #52616b;")
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(300)
@@ -379,6 +388,7 @@ class MainWindow(QMainWindow):
         self.progress.setTextVisible(False)
         self.progress.hide()
         log_layout.addWidget(self.status_label)
+        log_layout.addWidget(self.substatus_label)
         log_layout.addWidget(self.progress)
         log_layout.addWidget(self.log)
         log_box.setMinimumHeight(170)
@@ -455,19 +465,23 @@ class MainWindow(QMainWindow):
     @Slot(list)
     def _add_files(self, paths: list[Path]) -> None:
         self.log.clear()
+        self.substatus_label.setText("ZIP-Dateien werden entpackt ..." if any(path.suffix.lower() == ".zip" for path in paths) else "Dateien werden vorbereitet ...")
         free_indices = [index for index, slot in enumerate(self.slots) if not slot.is_ready() and slot.source_path is None]
         valid_paths = [path for path in self._expand_import_paths(paths) if path.is_file()]
         if len(valid_paths) > len(free_indices):
             self.status_label.setText(f"Nur {len(free_indices)} freie Rasterfelder verfuegbar")
             valid_paths = valid_paths[: len(free_indices)]
         if not valid_paths:
+            self.substatus_label.setText("Keine unterstützten Dateien gefunden")
             return
 
+        self.total_files = len(valid_paths)
+        self.processed_files = 0
         self.total_renders = sum(path.suffix.lower() == ".aml" for path in valid_paths)
         self.pending_renders = self.total_renders
+        self.status_label.setText(f"0 von {self.total_files} Dateien verarbeitet")
         if self.total_renders:
             self.progress.show()
-            self.status_label.setText(f"Verarbeite {self.total_renders} AML-Datei(en) ...")
 
         for index, path in zip(free_indices, valid_paths):
             slot = self.slots[index]
@@ -478,12 +492,26 @@ class MainWindow(QMainWindow):
                 task = RenderTask(self.render_generation, index, path, rendered_path)
                 task.signals.completed.connect(self._aml_render_completed)
                 task.signals.failed.connect(self._aml_render_failed)
+                task.signals.progress.connect(self._aml_render_progress)
                 self.render_pool.start(task)
             else:
                 self._set_slot_image(index, path, path)
+                self.processed_files += 1
+                self._update_file_progress()
         if self.total_renders == 0:
-            self.status_label.setText("Label-Stapel bereit")
+            self.substatus_label.setText("Alle Dateien verarbeitet")
         self._update_print_button()
+
+    def _update_file_progress(self) -> None:
+        self.status_label.setText(f"{self.processed_files} von {self.total_files} Dateien verarbeitet")
+
+    @Slot(int, int, str)
+    def _aml_render_progress(self, generation: int, index: int, message: str) -> None:
+        if generation != self.render_generation:
+            return
+        source_path = self.slots[index].source_path
+        filename = source_path.name if source_path else "AML-Datei"
+        self.substatus_label.setText(f"{filename}: {message}")
 
     def _set_slot_image(self, index: int, source_path: Path, rendered_path: Path) -> None:
         pixmap = QPixmap(str(rendered_path))
@@ -500,6 +528,8 @@ class MainWindow(QMainWindow):
         if source_path is not None:
             self._set_slot_image(index, source_path, Path(rendered_path))
         self.pending_renders -= 1
+        self.processed_files += 1
+        self._update_file_progress()
         self._finish_rendering_if_done()
 
     @Slot(int, int, str)
@@ -508,6 +538,8 @@ class MainWindow(QMainWindow):
             return
         self.slots[index].clear()
         self.pending_renders -= 1
+        self.processed_files += 1
+        self._update_file_progress()
         self.log.appendPlainText(message)
         self._finish_rendering_if_done()
 
@@ -515,7 +547,7 @@ class MainWindow(QMainWindow):
         if self.pending_renders > 0:
             return
         self.progress.hide()
-        self.status_label.setText("Label-Stapel bereit")
+        self.substatus_label.setText("Alle Dateien verarbeitet")
         self._update_print_button()
 
     @Slot()
@@ -523,11 +555,14 @@ class MainWindow(QMainWindow):
         self.render_generation += 1
         self.pending_renders = 0
         self.total_renders = 0
+        self.total_files = 0
+        self.processed_files = 0
         self.progress.hide()
         for slot in self.slots:
             slot.clear()
         self.log.clear()
         self.status_label.setText("Bereit")
+        self.substatus_label.setText("Warte auf Dateien ...")
         self._update_print_button()
 
     def _update_print_button(self) -> None:
