@@ -124,6 +124,8 @@ start-print-my-spool-label-gui.bat
 
 Dieses Script startet die GUI direkt und fuehrt kein Repository-Update aus.
 
+Fuer einen Start ohne sichtbares Konsolenfenster kann stattdessen `start-print-my-spool-label-gui-hidden.vbs` per Doppelklick gestartet werden.
+
 ### Aktualisieren und starten
 
 ```text
@@ -131,6 +133,8 @@ start-print-my-spool-label.bat
 ```
 
 Dieses Script fuehrt zuerst `git pull` aus und startet danach die GUI. Es eignet sich fuer Rechner, auf denen immer die aktuelle Repository-Version verwendet werden soll.
+
+Fuer den normalen Update-und-Start-Workflow ohne sichtbares Konsolenfenster kann `start-print-my-spool-label-hidden.vbs` verwendet werden.
 
 ### Python direkt verwenden
 
@@ -225,6 +229,8 @@ requirements.txt                  Python-Abhaengigkeiten
 install-print-my-spool-label.bat  One-Click-Installation
 start-print-my-spool-label.bat    Git-Update und GUI-Start
 start-print-my-spool-label-gui.bat Direkter GUI-Start
+start-print-my-spool-label-hidden.vbs      Git-Update und GUI-Start ohne Konsole
+start-print-my-spool-label-gui-hidden.vbs  Direkter GUI-Start ohne Konsole
 ```
 
 ## Herkunft
