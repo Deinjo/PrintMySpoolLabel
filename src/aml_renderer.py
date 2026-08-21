@@ -300,14 +300,14 @@ def render_aml_to_png(
     if data.qr_image:
         qr_image = data.qr_image.copy().convert("RGB")
         qr_image = qr_image.resize((qr_size, qr_size), Image.Resampling.NEAREST)
-        image.paste(qr_image, (4, 6))
+        image.paste(qr_image, (7, 6))
     elif data.qr_url:
         qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=1, box_size=4)
         qr.add_data(data.qr_url)
         qr.make(fit=True)
         qr_image = qr.make_image(fill_color="black", back_color="white").convert("RGB")
         qr_image = qr_image.resize((qr_size, qr_size), Image.Resampling.NEAREST)
-        image.paste(qr_image, (4, 6))
+        image.paste(qr_image, (7, 6))
 
     right_left = 96
     right_edge = 316

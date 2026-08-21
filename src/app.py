@@ -340,6 +340,7 @@ class MainWindow(QMainWindow):
     def _build_ui(self) -> None:
         self.setWindowTitle("PrintMySpoolLabel")
         self.resize(1120, 820)
+        self.setMinimumSize(900, 650)
         self.setAcceptDrops(True)
         self.setStyleSheet(
             """
@@ -388,6 +389,7 @@ class MainWindow(QMainWindow):
 
         settings_box = QGroupBox("Druckeinstellungen")
         settings_box.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Expanding)
+        settings_box.setMinimumWidth(480)
         settings_form = QFormLayout(settings_box)
         settings_form.addRow("Serieller Port:", port_layout)
         settings_form.addRow("Anzahl Kopien:", self.quantity_edit)
@@ -403,7 +405,8 @@ class MainWindow(QMainWindow):
         self.log = QPlainTextEdit()
         self.log.setReadOnly(True)
         self.log.setMaximumBlockCount(300)
-        self.log.setMinimumHeight(105)
+        self.log.setMinimumHeight(0)
+        self.log.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.log.setPlaceholderText("Druckdiagnose erscheint hier ...")
         self.progress = QProgressBar()
         self.progress.setRange(0, 0)
@@ -413,7 +416,7 @@ class MainWindow(QMainWindow):
         log_layout.addWidget(self.substatus_label)
         log_layout.addWidget(self.progress)
         log_layout.addWidget(self.log)
-        log_box.setMinimumHeight(170)
+        log_box.setMinimumHeight(0)
 
         buttons = QHBoxLayout()
         buttons.addWidget(self.clear_button)
